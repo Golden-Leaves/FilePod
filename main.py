@@ -1,5 +1,5 @@
-from datetime import date
-from flask import Flask, abort, render_template, redirect, url_for, flash,session
+from datetime import datetime,timezone,timedelta
+from flask import Flask, abort, render_template, redirect, url_for, flash,session,request,jsonify
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
@@ -9,9 +9,15 @@ from sqlalchemy import Integer, String, Text,ForeignKey
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+from dotenv import load_dotenv
+import secrets
+from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
+load_dotenv(env_path)
+DEFAULT_TTL = timedelta(hours=1)
+app = Flask(__name__,static_folder="static",template_folder="templates")
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
 
 Bootstrap(app)
@@ -25,7 +31,64 @@ Session(app)
 #     return db.session.execute(db.select(User).where(User.id == user_id)).scalar()
 class Base(DeclarativeBase):
     pass
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///files.db'
 db = SQLAlchemy(model_class=Base)
 db.init_app(app)
-def 
+
+class File(db.Model):
+    """Some Test Docstring"""
+    __tablename__ = "files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String(32), unique=True, index=True) #Unique Token Identifier(imagine duplicates + security)
+    name: Mapped[str] = mapped_column(String(255)) #File/Folder name
+    stored_path: Mapped[str] = mapped_column(Text)
+    size: Mapped[int] = mapped_column(Integer) #Size in bytes
+    mime: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc))
+    expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
+with app.app_context():
+    db.create_all()
+    os.makedirs(os.path.join(app.root_path, "storage"), exist_ok=True)
+@app.route("/room",methods=["GET","POST"])
+def room():
+    return render_template("room.html")
+@app.route("/upload",methods=["POST"])
+def upload():
+    files = request.files.getlist("files")
+    print(files)
+    uploaded = []
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+   
+    for f in files:
+        token = secrets.token_urlsafe(16) #Some random token
+        filename = secure_filename(f.filename)
+        
+        storage_dir = os.path.join(base_dir,"storage",token) #Will be stored in the storage directory with it's associated token
+        os.makedirs(storage_dir,exist_ok=True)
+        stored_path = os.path.join(storage_dir,filename)
+        f.save(stored_path) #Saves the file/folder uploaded into the storage path
+        
+        file = File()
+        file.token = token
+        file.name = f.filename
+        file.stored_path = stored_path
+        file.size = os.path.getsize(storage_dir)
+        file.mime = f.mimetype
+        file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
+        db.session.add(file)
+        db.session.commit()
+        
+        uploaded.append({
+            "token": token,
+            "name": f.filename,
+            "size": os.path.getsize(storage_dir),
+            "expires_at": (datetime.now(timezone.utc) + DEFAULT_TTL).isoformat() + "Z",
+            "downloads": 0
+        })
+        
+    return jsonify({"uploaded":uploaded})
+
+if __name__ == "__main__":
+    app.run(debug=True)
