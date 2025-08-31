@@ -47,7 +47,7 @@ class File(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc))
     expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    hit_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
+    download_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
     
 with app.app_context():
     db.create_all()
@@ -75,7 +75,7 @@ def upload():#Uploads the file to a storage folder and saves metadata to db
         file.token = token
         file.name = f.filename
         file.stored_path = stored_path
-        file.size = os.path.getsize(storage_dir) #Get filesize(in bytes)
+        file.size = os.path.getsize(stored_path) #Get filesize(in bytes)
         file.mime = f.mimetype
         file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
         db.session.add(file)
@@ -84,12 +84,27 @@ def upload():#Uploads the file to a storage folder and saves metadata to db
         uploaded.append({
             "token": token,
             "name": f.filename,
-            "size": os.path.getsize(storage_dir),
+            "size": os.path.getsize(stored_path),
             "expires_at": (datetime.now(timezone.utc) + DEFAULT_TTL).isoformat() + "Z",
             "downloads": 0
         })
         
     return jsonify({"uploaded":uploaded})
-
+@app.route("/files")
+def files(): 
+    """Returns a JSON of File objects"""
+    now = datetime.now(timezone.utc)
+    rows = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
+    payload = []
+    for row in rows:
+       payload.append({
+            "token": row.token,
+            "name": row.name,
+            "size": row.size,
+            "mime": row.mime,
+            "expires_at": row.expires_at.isoformat(),
+            "download_count": row.download_count,
+        })
+    return jsonify(payload)
 if __name__ == "__main__":
     app.run(debug=True)
