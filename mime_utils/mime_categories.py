@@ -1,24 +1,24 @@
 MIME_CATEGORIES: dict[str, list[str]] = {
-    "Images": [
+    "Image": [
         "image/jpeg", "image/png", "image/gif", "image/bmp",
         "image/svg+xml", "image/webp", "image/tiff",
         "image/avif", "image/heic", "image/heif", "image/x-icon",
         "image/vnd.adobe.photoshop"
     ],
-    "Documents": [
+    "Document": [
         "application/pdf", "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "text/plain", "text/markdown", "application/vnd.oasis.opendocument.text",
         "application/x-abiword", "application/xhtml+xml", "application/rtf",
         "application/ld+json"
     ],
-    "Spreadsheets": [
+    "Spreadsheet": [
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "text/csv", "application/vnd.oasis.opendocument.spreadsheet",
         "text/tab-separated-values"
     ],
-    "Videos": [
+    "Video": [
         "video/mp4", "video/x-matroska", "video/quicktime",
         "video/x-msvideo", "video/webm",
         "video/3gpp", "video/3gpp2", "video/ogg", "video/x-flv", "video/mp2t"
@@ -28,7 +28,7 @@ MIME_CATEGORIES: dict[str, list[str]] = {
         "audio/ogg", "audio/webm", "audio/aac", "audio/opus",
         "audio/mp4", "audio/midi", "audio/x-midi", "audio/3gpp"
     ],
-    "Archives": [
+    "Archive": [
         "application/zip", "application/x-zip-compressed",
         "application/x-rar-compressed", "application/vnd.rar",
         "application/x-tar", "application/gzip", "application/x-7z-compressed",
@@ -38,7 +38,7 @@ MIME_CATEGORIES: dict[str, list[str]] = {
         "application/x-iso9660-image",
         "application/zstd"
     ],
-    "Scripts": [
+    "Script": [
         "text/x-python", "application/x-sh", "application/x-bat",
         "application/javascript", "application/x-javascript", "text/javascript",
         "text/typescript", "application/typescript",
@@ -46,7 +46,7 @@ MIME_CATEGORIES: dict[str, list[str]] = {
         "text/x-java-source", "text/html", "text/css",
         "application/x-httpd-php", "text/x-php", "application/x-perl"
     ],
-    "Executables": [
+    "Executable": [
         "application/vnd.microsoft.portable-executable",
         "application/x-msdownload", "application/x-msinstaller",
         "application/vnd.android.package-archive",
@@ -54,7 +54,7 @@ MIME_CATEGORIES: dict[str, list[str]] = {
         "application/x-executable", "application/x-appimage",
         "application/x-apple-diskimage"
     ],
-    "Presentations": [
+    "Presentation": [
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.slideshow"

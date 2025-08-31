@@ -31,19 +31,22 @@ function renderTableFromRows(rows){
   const items = rows.map(r => ({
     id: r.token,
     name: r.name,
-    kind:"file",
-    mime: r.mime || "",
+    kind: "file",
+    // prefer server-provided type; otherwise derive from mime; fallback to "File"
+    type: r.type || (r.mime ? (r.mime.split("/")[0] || "File") : "File"),
+    mime: r.mime || null,
     size: r.size || 0,
-    expiresAt: Date.parse(r.expires_at) || (Date.now()+60*60*1000),
+    expiresAt: Date.parse(r.expires_at) || (Date.now() + 60*60*1000),
     downloads: r.download_count || r.downloads || 0,
     status: "active"
   }));
+
   const tbody = document.getElementById("rows");
   tbody.innerHTML = items.map(it => `
     <tr>
       <td><input type="checkbox"></td>
       <td>${it.name}</td>
-      <td>${it.mime.split("/")[1] || "File"}</td>
+      <td>${it.type}</td>
       <td class="text-end">${fmtBytes(it.size)}</td>
       <td>${timeLeft(it.expiresAt)}</td>
       <td class="text-end">${it.downloads}</td>
