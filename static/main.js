@@ -40,6 +40,7 @@ let ttlMinutes = 60; // or read from your TTL input if you have one
 // --- UPLOAD CORE ---
 // Sends files (and optional folder structure) to Flask /upload
 async function uploadFilesToServer(files, { preservePaths = true } = {}) {
+  console.log("[FilePod] preparing POST /upload with", files.length, "file(s)");
   const fd = new FormData();
   for (const f of files) {
     // Preserve folder structure if available (from <input webkitdirectory>)
@@ -263,7 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
     `).join("");
   }
 
-  // Optional: directory drag (keeps subfolders)
+  // directory drag (keeps subfolders)
   async function gatherDroppedFiles(dataTransfer) {
     const entries = [];
     for (const item of dataTransfer.items) {

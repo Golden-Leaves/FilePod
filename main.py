@@ -62,9 +62,8 @@ def upload():#Uploads the file to a storage folder and saves metadata to db
     files = request.files.getlist("files") #FileStorage type
     uploaded = []
     base_dir = os.path.dirname(os.path.abspath(__file__))
-   
+    token = secrets.token_urlsafe(16) #Some random token
     for f in files:
-        token = secrets.token_urlsafe(16) #Some random token
         filename = secure_filename(f.filename)
         print(filename)
         storage_dir = os.path.join(base_dir,"storage",token) #Will be stored in the storage directory with it's associated token
