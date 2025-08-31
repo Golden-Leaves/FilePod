@@ -7,20 +7,19 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text,ForeignKey
 from functools import wraps
-from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from dotenv import load_dotenv
 import secrets
 from werkzeug.utils import secure_filename
 from mime_utils.mime_categorizer import categorize_file
-
+from forms import UploadFileForm
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
 DEFAULT_TTL = timedelta(hours=1)
 app = Flask(__name__,static_folder="static",template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
-
+app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage")
 Bootstrap(app)
 Session(app)
 
@@ -57,42 +56,41 @@ with app.app_context():
     
 @app.route("/room",methods=["GET","POST"])
 def room():
-    return render_template("room.html")
+    form = UploadFileForm()
+    uploaded_files = db.session.execute(db.select(File)).scalars().all()
+    return render_template("room.html",form=form,uploaded_files=uploaded_files)
 
 @app.route("/upload",methods=["POST"])
 def upload():#Uploads the file to a storage folder and saves metadata to db
-    files = request.files.getlist("files") #FileStorage type
-    uploaded = []
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    token = secrets.token_urlsafe(16) #Some random token
-    for f in files:
-        filename = secure_filename(f.filename)
-        print(filename)
-        storage_dir = os.path.join(base_dir,"storage",token) #Will be stored in the storage directory with it's associated token
-        os.makedirs(storage_dir,exist_ok=True)
-        stored_path = os.path.join(storage_dir,filename)
-        f.save(stored_path) #Saves the file/folder uploaded into the storage path
+    form = UploadFileForm()
+    if form.validate_on_submit():
+        files = request.files.getlist("files") #If the user uploads multiple files
+        print(files)
+        token = secrets.token_urlsafe(16) #Some random token
         
-        file = File()
-        file.token = token
-        file.name = f.filename
-        file.stored_path = stored_path
-        file.size = os.path.getsize(stored_path) #Get filesize(in bytes)
-        file.mime = f.mimetype
-        file.type = categorize_file(file_path=stored_path)
-        file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
-        db.session.add(file)
+        for f in files:
+            if not f:
+                flash("No file was selected")
+            filename = secure_filename(f.filename)
+            print(filename)
+            storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token) #Will be stored in the storage directory with it's associated token
+            os.makedirs(storage_dir,exist_ok=True)
+            stored_path = os.path.join(storage_dir,filename)
+            f.save(stored_path) #Saves the file/folder uploaded into the storage path
+
+            file = File()
+            file.token = token
+            file.name = f.filename
+            file.stored_path = stored_path
+            file.size = os.path.getsize(stored_path) #File size in Bytes
+            file.mime = f.mimetype
+            file.type = categorize_file(file_path=stored_path) #Simplified file type
+            file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
+            db.session.add(file)
         db.session.commit()
         
-        uploaded.append({
-            "token": token,
-            "name": f.filename,
-            "size": os.path.getsize(stored_path),
-            "expires_at": (datetime.now(timezone.utc) + DEFAULT_TTL).isoformat() + "Z",
-            "downloads": 0
-        })
-        
-    return jsonify({"uploaded":uploaded})
+    return redirect(url_for("room"))
+
 @app.route("/files")
 def files(): 
     """Returns a JSON of File objects"""
@@ -109,5 +107,11 @@ def files():
             "download_count": row.download_count,
         })
     return jsonify(payload)
+
+
+# @app.route("/download/<int:token>")
+# def download(token):
+#     """"""
+    
 if __name__ == "__main__":
     app.run(debug=True)
