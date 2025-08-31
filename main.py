@@ -11,8 +11,11 @@ import os
 from dotenv import load_dotenv
 import secrets
 from werkzeug.utils import secure_filename
-from mime_utils.mime_categorizer import categorize_file
+from helpers.mime_categorizer import categorize_file
+from helpers.general import format_file_size
 from forms import UploadFileForm
+
+
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
 DEFAULT_TTL = timedelta(hours=1)
@@ -20,6 +23,7 @@ app = Flask(__name__,static_folder="static",template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage")
+app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of function that jinja can use
 Bootstrap(app)
 Session(app)
 

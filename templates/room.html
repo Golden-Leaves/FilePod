@@ -64,7 +64,8 @@
               <td class="type">{{ f.type or "Misc" }}</td>
 
               <!-- 4) Size -->
-              <td class="text-end size">{{ f.size }} bytes</td>
+              <!-- Jinja needs a space after the pipe??? -->
+              <td class="text-end size">{{ f.size | format_filesize}}</td>
 
               <!-- 5) Expires In -->
               <td class="expires">{{ f.expires_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
