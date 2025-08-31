@@ -104,7 +104,7 @@ def files():
             "token": row.token,
             "name": row.name,
             "size": row.size,
-            "type": categorize_file(row.type),
+            "type": row.type,
             "expires_at": row.expires_at.isoformat(),
             "download_count": row.download_count,
         })
