@@ -1,5 +1,5 @@
 from datetime import datetime,timezone,timedelta
-from flask import Flask, abort, render_template, redirect, url_for, flash,session,request,jsonify
+from flask import Flask, abort, render_template, redirect, url_for, flash,session,request,jsonify,Blueprint
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
@@ -48,23 +48,25 @@ class File(db.Model):
     expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hit_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
+    
 with app.app_context():
     db.create_all()
     os.makedirs(os.path.join(app.root_path, "storage"), exist_ok=True)
+    
 @app.route("/room",methods=["GET","POST"])
 def room():
     return render_template("room.html")
+
 @app.route("/upload",methods=["POST"])
-def upload():
-    files = request.files.getlist("files")
-    print(files)
+def upload():#Uploads the file to a storage folder and saves metadata to db
+    files = request.files.getlist("files") #FileStorage type
     uploaded = []
     base_dir = os.path.dirname(os.path.abspath(__file__))
    
     for f in files:
         token = secrets.token_urlsafe(16) #Some random token
         filename = secure_filename(f.filename)
-        
+        print(filename)
         storage_dir = os.path.join(base_dir,"storage",token) #Will be stored in the storage directory with it's associated token
         os.makedirs(storage_dir,exist_ok=True)
         stored_path = os.path.join(storage_dir,filename)
@@ -74,7 +76,7 @@ def upload():
         file.token = token
         file.name = f.filename
         file.stored_path = stored_path
-        file.size = os.path.getsize(storage_dir)
+        file.size = os.path.getsize(storage_dir) #Get filesize(in bytes)
         file.mime = f.mimetype
         file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
         db.session.add(file)
