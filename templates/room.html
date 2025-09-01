@@ -78,7 +78,7 @@
 
               <!-- 8) Actions-->
               <td class="text-end">
-                <a href="#room" class="btn btn-sm btn-primary">Download</a>
+                <a href="{{url_for('download',token=f.token,filename=f.name)}}" class="btn btn-sm btn-primary">Download</a>
                 <form method="POST" action="#room" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                 </form>
