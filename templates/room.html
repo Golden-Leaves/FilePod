@@ -25,7 +25,7 @@
       <form method="POST" action="{{url_for('upload')}}" enctype="multipart/form-data">
         {{form.hidden_tag()}}
         {{form.files(id="folders",multiple=True, webkitdirectory=True, directory=True, class="d-none", onchange="this.form.submit()")}}
-        <label for="files" class="btn btn-outline-primary mb-0">Upload Folders</label>
+        <label for="folders" class="btn btn-outline-primary mb-0">Upload Folders</label>
       </form>
 
       <input id="search" class="form-control w-auto" placeholder="Search files…" />

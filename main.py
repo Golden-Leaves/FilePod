@@ -1,9 +1,8 @@
 from datetime import datetime,timezone,timedelta
 from flask import (Flask, abort, render_template, redirect, url_for, flash,
-                   session,request,jsonify,Blueprint,send_from_directory)
+                   session,request,Blueprint,send_from_directory)
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
-from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text,ForeignKey
@@ -13,7 +12,7 @@ from dotenv import load_dotenv
 import secrets
 from werkzeug.utils import secure_filename
 from helpers.mime_categorizer import categorize_file
-from helpers.general import format_file_size
+from helpers.general import format_file_size,is_folder_upload,sanitize_rel_path
 from forms import UploadFileForm
 import tempfile
 
@@ -28,12 +27,6 @@ app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of func
 Bootstrap(app)
 Session(app)
 
-# login_manager = LoginManager()
-# login_manager.init_app(app)
-# login_manager.login_view = "login"
-# @login_manager.user_loader
-# def user_loader(user_id):
-#     return db.session.execute(db.select(User).where(User.id == user_id)).scalar()
 class Base(DeclarativeBase):
     pass
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///files.db'
@@ -44,7 +37,7 @@ class File(db.Model):
     """Some Test Docstring"""
     __tablename__ = "files"
     id: Mapped[int] = mapped_column(primary_key=True)
-    token: Mapped[str] = mapped_column(String(32), unique=True, index=True) #Unique Token Identifier(imagine duplicates + security)
+    token: Mapped[str] = mapped_column(String(32),index=True,nullable=False) #Unique Token Identifier(imagine duplicates + security)
     name: Mapped[str] = mapped_column(String(255)) #File/Folder name, can also act as relative path
     stored_path: Mapped[str] = mapped_column(Text) #The FULL path to the file
     size: Mapped[int] = mapped_column(Integer) #Size in bytes
@@ -54,7 +47,9 @@ class File(db.Model):
     expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     download_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
-    
+    rel_path: Mapped[str] = mapped_column(Text) #Saves the FULL relative path of the file(including all parents)
+    parent_folder: Mapped[str] = mapped_column(Text) #Only saves the parents
+
 with app.app_context():
     db.create_all()
     os.makedirs(os.path.join(app.root_path, "storage"), exist_ok=True)
@@ -64,35 +59,54 @@ def room():
     form = UploadFileForm()
     now = datetime.now(timezone.utc)
     #Make sure files are not expired
-    uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
+    
+    uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now))
+    orphaned_files = uploaded_files.where(File.rel_path)
     return render_template("room.html",form=form,uploaded_files=uploaded_files)
 
 @app.route("/upload",methods=["POST"])
-def upload():#Uploads the file to a storage folder and saves metadata to db
+def upload():
+    """Uploads the file to a storage folder and saves metadata to db"""
     form = UploadFileForm()
     if form.validate_on_submit():
-        files = request.files.getlist("files") #If the user uploads multiple files
+        files = request.files.getlist("files")
         print(files)
-        token = secrets.token_urlsafe(16) #Some random token
-        
+        token = secrets.token_urlsafe(16) 
+
         for f in files:
             if not f:
                 flash("No file was selected")
-            filename = secure_filename(f.filename)
+                continue
+                
+            rel_path = sanitize_rel_path(f.filename)
+            print("Relative Path: ",rel_path)
+            filename = os.path.basename(rel_path)
+            parent_folder = os.path.dirname(rel_path)
+            print("Parent Folder: ",parent_folder)
             print(filename)
+            
             storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token) #Will be stored in the storage directory with it's associated token
             os.makedirs(storage_dir,exist_ok=True)
-            stored_path = os.path.join(storage_dir,filename)
-            f.save(stored_path) #Saves the file/folder uploaded into the storage path
+            
+            parts = rel_path.split("/") #Windows shenanigans
+            
+            stored_path = os.path.join(storage_dir,*parts) #Preserve folder structure by using rel_path
+            print("Stored Path: ",stored_path)
+            os.makedirs(os.path.dirname(stored_path),exist_ok=True) #Make all the parent dirs of stored_path
+            f.save(stored_path) 
 
             file = File()
             file.token = token
-            file.name = f.filename
+            file.name = filename
             file.stored_path = stored_path
             file.size = os.path.getsize(stored_path) #File size in Bytes
             file.mime = f.mimetype
             file.type = categorize_file(file_path=stored_path) #Simplified file type
+            file.created_at = datetime.now(timezone.utc)
             file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
+            file.rel_path = rel_path
+            file.parent_folder = parent_folder
+            
             db.session.add(file)
         db.session.commit()
         
@@ -136,9 +150,11 @@ def download(token,filename):
                     rel_file_path = os.path.relpath(abs_file_path,storage_dir)
                     print(rel_file_path)
                     zf.write(abs_file_path,rel_file_path)
+        return send_from_directory(directory=os.path.dirname(zip_path),path=os.path.basename(zip_path),
+                                   as_attachment=True,download_name=filename)
     else:
         return send_from_directory(directory=storage_dir,path=filename,as_attachment=True,
                                    download_name=filename)
-    return "Nothing yet baby"
+        
 if __name__ == "__main__":
     app.run(debug=True)
