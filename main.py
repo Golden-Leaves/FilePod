@@ -113,12 +113,13 @@ def files():
             "expires_at": row.expires_at.isoformat(),
             "download_count": row.download_count,
         })
-    return jsonify(payload)
+    return "This path is deprecated"
 
 
 @app.route("/download/<token>/<path:filename>")
 def download(token,filename):
     """Download desired files/folders"""
+    filename = secure_filename(filename)
     downloaded_files:File = db.session.execute(db.select(File).where(File.token == token)).scalars().all()
     storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token)
     temp_dir = tempfile.gettempdir() #Gets the system's temp dir(Cross-platform)
@@ -133,6 +134,7 @@ def download(token,filename):
                     abs_file_path = os.path.join(root,file)
                     #Only trims to storage path, so it doesn't leak the full directory path
                     rel_file_path = os.path.relpath(abs_file_path,storage_dir)
+                    print(rel_file_path)
                     zf.write(abs_file_path,rel_file_path)
     else:
         return send_from_directory(directory=storage_dir,path=filename,as_attachment=True,
