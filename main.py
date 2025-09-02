@@ -1,6 +1,6 @@
 from datetime import datetime,timezone,timedelta
 from flask import (Flask, abort, render_template, redirect, url_for, flash,
-                   session,request,Blueprint,send_from_directory)
+                   session,request,Blueprint,send_from_directory,jsonify)
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
@@ -61,12 +61,13 @@ def room_stable():
     now = datetime.now(timezone.utc)
     #Make sure files are not expired
     
-    uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now))
-    return render_template("room.html",form=form,uploaded_files=uploaded_files)
+    uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
+    return render_template("room-stable.html",form=form,uploaded_files=uploaded_files)
 
 @app.route("/upload",methods=["POST"])
 def upload():
     """Uploads the file to a storage folder and saves metadata to db"""
+    is_debug = request.args.get("debug","false").lower() == "true"
     form = UploadFileForm()
     if form.validate_on_submit():
         files = request.files.getlist("files")
@@ -109,8 +110,10 @@ def upload():
             
             db.session.add(file)
         db.session.commit()
-        
-    return redirect(url_for("room"))
+    if is_debug:
+        return redirect(url_for("room_stable"))
+    else:
+        return redirect(url_for("room"))
 
 @app.route("/files")
 def files(): 
@@ -159,6 +162,9 @@ def download(token,filename):
         
 @app.route("/test")
 def test():
-    return get_children(token="abc123", current_folder="Okayu", root="storage")
+    current_folder = request.args.get("current_folder")
+    subfolders,files,rel_paths = get_children(token="W1sGok0NREObsS3CVcJHSA", current_folder=current_folder, 
+                                    root=app.config["UPLOAD_FOLDER"])
+    return jsonify([subfolders,[file.name for file in files],rel_paths])
 if __name__ == "__main__":
     app.run(debug=True)

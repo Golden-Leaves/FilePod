@@ -1,0 +1,155 @@
+{% extends "header.html" %}
+
+
+{%block content%}
+  <main class="p-3">
+    <div class="mb-2 d-flex gap-2 align-items-center flex-wrap">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          {% for msg in messages %}
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+              {{ msg }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      <form method="POST" action="{{url_for('upload',debug='true')}}" enctype="multipart/form-data">
+        {{form.hidden_tag()}}
+        <!-- d-none hides the element -->
+        {{ form.files(id="files",multiple=True,class="d-none", onchange="this.form.submit()") }} 
+        <!-- for triggers the corresponding element, so this triggers the hidden input -->
+        <label for="files" class="btn btn-primary mb-0">Upload Files</label>
+      </form>
+         
+      <form method="POST" action="{{url_for('upload',debug='true')}}" enctype="multipart/form-data">
+        {{form.hidden_tag()}}
+        {{form.files(id="folders",multiple=True, webkitdirectory=True, directory=True, class="d-none", onchange="this.form.submit()")}}
+        <label for="folders" class="btn btn-outline-primary mb-0">Upload Folders</label>
+      </form>
+
+      <input id="search" class="form-control w-auto" placeholder="Search files…" />
+      <div class="ms-auto text-muted">Drop files/folders anywhere</div>
+    </div>
+
+    <div id="dropzone" class="dropzone mb-2 text-center">Drop files or folders here</div>
+
+    <div class="table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="width:36px;"><input type="checkbox" id="chk-all"></th>
+            <th>Name</th>
+            <th>Type</th>
+            <th class="text-end">Size</th>
+            <th>Expires In</th>
+            <th class="text-end">Downloads</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          {% for f in uploaded_files %}
+          <!-- Makes table rows containing all the relevant data -->
+            <tr>
+              <!-- 1) checkbox column-->
+              <td style="width:36px;" class="text-center">
+                <input type="checkbox" name="selected" value="{{ f.token }}">
+              </td>
+
+              <!-- 2) Name -->
+              <td class="name">{{ f.name }}</td>
+
+              <!-- 3) Type -->
+              <td class="type">{{ f.type or "Misc" }}</td>
+
+              <!-- 4) Size -->
+              <!-- Jinja needs a space after the pipe??? -->
+              <td class="text-end size">{{ f.size | format_filesize}}</td>
+
+              <!-- 5) Expires In -->
+              <td class="expires">{{ f.expires_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+
+              <!-- 6) Downloads  -->
+              <td class="text-end downloads">{{ f.download_count or 0 }}</td>
+
+              <!-- 7) Status -->
+              <td class="status">{{ f.status or "active" }}</td>
+
+              <!-- 8) Actions-->
+              <td class="text-end">
+                <a href="{{url_for('download',token=f.token,filename=f.name)}}" class="btn btn-sm btn-primary">Download</a>
+                <form method="POST" action="#room" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="status d-flex justify-content-between align-items-center mt-2">
+      <div id="status-left">0 items selected • Total 0 B</div>
+      <div id="status-right" class="small-mono">Serving on <span id="host">192.168.1.42:5000</span></div>
+    </footer>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Settings</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="togglePassword">
+            <label class="form-check-label" for="togglePassword">Enable Password</label>
+          </div>
+          <div class="mb-3" id="passwordField" style="display:none;">
+            <label for="passwordInput" class="form-label">Password</label>
+            <input type="text" class="form-control" id="passwordInput" placeholder="Enter password">
+          </div>
+          <div class="mb-3">
+            <label for="ttlSelect" class="form-label">Time To Live (TTL)</label>
+            <select class="form-select" id="ttlSelect">
+              <option value="5">5 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="saveSettings">Save changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{%endblock%}
+{%block scripts%}
+  <script>
+    // open modal
+    document.getElementById('btn-settings').addEventListener('click', ()=>{
+      new bootstrap.Modal(document.getElementById('settingsModal')).show();
+    });
+
+    // toggle password field
+    document.getElementById('togglePassword').addEventListener('change', e=>{
+      document.getElementById('passwordField').style.display = e.target.checked ? 'block':'none';
+    });
+
+    document.getElementById('saveSettings').addEventListener('click', ()=>{
+      const enabled = document.getElementById('togglePassword').checked;
+      const pw = document.getElementById('passwordInput').value;
+      const ttl = document.getElementById('ttlSelect').value;
+      console.log('Settings saved:', {passwordEnabled: enabled, password: pw, ttl});
+      bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+    });
+  </script>
+  <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+{%endblock%}

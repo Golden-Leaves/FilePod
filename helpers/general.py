@@ -19,8 +19,14 @@ def format_file_size(file_size:int) -> str:
 }
     
     for size,bytes in reversed(list(size_map.items())):
+        current_file_size = file_size / bytes #In current units like KB or MB
         if file_size >= bytes: #If file_size is larger than current size unit
-            return f"{file_size / bytes:.1f} {size}"
+            if current_file_size.is_integer():
+                return f"{int(current_file_size)} {size}"
+            else:
+                return f"{current_file_size:.1f} {size}"
+           
+        
     return f"{file_size} B"
 def is_folder_upload(files:list):
     """Detects if the current batch that was uploaded is a folder"""
@@ -40,20 +46,24 @@ def sanitize_rel_path(raw: str) -> str:
 
 def get_children(token:str,current_folder:str,root:str):
     now = datetime.now(timezone.utc)
-    files = (db.session.execute(db.select(File)
+    files: list[File] = (db.session.execute(db.select(File)
             .where(File.expires_at > now, File.parent_folder == current_folder,File.token == token)
             .order_by(File.name.asc()))
-            .scalars().all())
+            .scalars().all()) #"Database1.accdb"
     prefix = f"{current_folder}/" if current_folder else "" #Current folder prefix
     #prefix/% or prefix% matches anything that starts with the prefix(cuz of the '%')
-    rel_paths = (db.session.execute(db.select(File.rel_path)
+    rel_paths:list[str] = (db.session.execute(db.select(File.rel_path)
                 .where(File.expires_at > now,File.rel_path.like(f"{prefix}%"),File.token == token))
-                  ).scalars().all()
-    
-    print(rel_paths)
-    return rel_paths
+                  ).scalars().all() #"some_folder/Misc/Database1.accdb"
+    print(prefix)
+    subfolders =  set([])
+    for rel_path in rel_paths:
+        if rel_path.startswith(prefix):
+            tail = rel_path[len(prefix):]
+            subfolders.add(os.path.dirname(tail))
+    return list(subfolders),files,rel_paths
         
 if __name__ == "__main__":
     print(format_file_size(1024*2))
     print([])
-    get_children(token="abc123", current_folder="Okayu", root="storage")
+    get_children(token="abc123", current_folder="some_folder/Documents", root="storage")
