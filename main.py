@@ -10,11 +10,13 @@ from functools import wraps
 import zipfile,os
 from dotenv import load_dotenv
 import secrets
+import tempfile
 from werkzeug.utils import secure_filename
 from helpers.mime_categorizer import categorize_file
-from helpers.general import format_file_size,is_folder_upload,sanitize_rel_path
+from helpers.general import format_file_size,sanitize_rel_path,get_children
 from forms import UploadFileForm
-import tempfile
+from models import db,File
+
 
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
@@ -30,38 +32,36 @@ Session(app)
 class Base(DeclarativeBase):
     pass
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///files.db'
-db = SQLAlchemy(model_class=Base)
-db.init_app(app)
 
-class File(db.Model):
-    """Some Test Docstring"""
-    __tablename__ = "files"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    token: Mapped[str] = mapped_column(String(32),index=True,nullable=False) #Unique Token Identifier(imagine duplicates + security)
-    name: Mapped[str] = mapped_column(String(255)) #File/Folder name, can also act as relative path
-    stored_path: Mapped[str] = mapped_column(Text) #The FULL path to the file
-    size: Mapped[int] = mapped_column(Integer) #Size in bytes
-    mime: Mapped[str] = mapped_column(String(128))
-    type: Mapped[str] = mapped_column(String(128)) #The simplified "type" derived from mime: "Images","Documents",...
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc))
-    expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
-    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    download_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
-    rel_path: Mapped[str] = mapped_column(Text) #Saves the FULL relative path of the file(including all parents)
-    parent_folder: Mapped[str] = mapped_column(Text) #Only saves the parents
+db.init_app(app)
 
 with app.app_context():
     db.create_all()
     os.makedirs(os.path.join(app.root_path, "storage"), exist_ok=True)
     
-@app.route("/room",methods=["GET","POST"])
-def room():
+@app.route("/room/<token>/<path:current_folder>",methods=["GET","POST"])
+def room(token):
+    form = UploadFileForm()
+    now = datetime.now(timezone.utc)
+    #Make sure files are not expired
+    current_folder = request.args.get("folder","") 
+    # uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now))
+    parent_folders:list = set(db.session.execute(db.select(File.parent_folder).where(File.expires_at > now))
+                        .scalars().all())
+    all_files:list[File] = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
+    files_with_parents:list[File] = [file for file in all_files if file.parent_folder]
+    orphaned_files:list[File] = [file for file in all_files if not file.parent_folder]
+    #Gets all the subfolders and files of the current folder
+    subfolders, files = get_children(token=token,current_folder=current_folder,root=app.config["UPLOAD_FOLDER"]) 
+    return render_template("room.html",form=form,subfolders=subfolders,files=files)
+
+@app.route("/room-stable")
+def room_stable():
     form = UploadFileForm()
     now = datetime.now(timezone.utc)
     #Make sure files are not expired
     
     uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now))
-    orphaned_files = uploaded_files.where(File.rel_path)
     return render_template("room.html",form=form,uploaded_files=uploaded_files)
 
 @app.route("/upload",methods=["POST"])
@@ -156,5 +156,9 @@ def download(token,filename):
         return send_from_directory(directory=storage_dir,path=filename,as_attachment=True,
                                    download_name=filename)
         
+        
+@app.route("/test")
+def test():
+    return get_children(token="abc123", current_folder="Okayu", root="storage")
 if __name__ == "__main__":
     app.run(debug=True)
