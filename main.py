@@ -17,14 +17,14 @@ from helpers.general import format_file_size,sanitize_rel_path,get_children
 from forms import UploadFileForm
 from models import db,File
 
-
+DEFAULT_ROOM_TOKEN = "default_room"
+DEFAULT_TTL = timedelta(hours=1)
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
-DEFAULT_TTL = timedelta(hours=1)
 app = Flask(__name__,static_folder="static",template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
-app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage")
+app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage",DEFAULT_ROOM_TOKEN) #TODO: Add a real room token
 app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of function that jinja can use
 Bootstrap(app)
 Session(app)
@@ -37,35 +37,35 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
-    os.makedirs(os.path.join(app.root_path, "storage"), exist_ok=True)
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
     
-@app.route("/room/<token>/<path:current_folder>",methods=["GET","POST"])
-def room(token):
+@app.route("/room/<room_token>/<token>",methods=["GET","POST"])
+def room(room_token,token):
+    current_folder = request.args.get("current_folder","")
+    
     form = UploadFileForm()
-    now = datetime.now(timezone.utc)
+    room_token = DEFAULT_ROOM_TOKEN
     #Make sure files are not expired
-    current_folder = request.args.get("folder","") 
-    # uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now))
-    parent_folders:list = set(db.session.execute(db.select(File.parent_folder).where(File.expires_at > now))
-                        .scalars().all())
-    all_files:list[File] = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
-    files_with_parents:list[File] = [file for file in all_files if file.parent_folder]
-    orphaned_files:list[File] = [file for file in all_files if not file.parent_folder]
+    # uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now)
+    
     #Gets all the subfolders and files of the current folder
-    subfolders, files = get_children(token=token,current_folder=current_folder,root=app.config["UPLOAD_FOLDER"]) 
-    return render_template("room.html",form=form,subfolders=subfolders,files=files)
+    subfolders, files,rel_paths = get_children(token=token,room_token=room_token,
+                                    current_folder=current_folder) 
+    print(subfolders,[file.name for file in files],rel_paths)
+    return render_template("room.html",form=form,subfolders=subfolders,files=files,room_token=room_token,token=token)
 
 @app.route("/room-stable")
 def room_stable():
+    room_token = DEFAULT_ROOM_TOKEN
     form = UploadFileForm()
     now = datetime.now(timezone.utc)
     #Make sure files are not expired
     
     uploaded_files:File = db.session.execute(db.select(File).where(File.expires_at > now)).scalars().all()
-    return render_template("room-stable.html",form=form,uploaded_files=uploaded_files)
+    return render_template("room-stable.html",form=form,uploaded_files=uploaded_files,room_token=room_token)
 
-@app.route("/upload",methods=["POST"])
-def upload():
+@app.route("/upload/<room_token>/<token>",methods=["POST"])
+def upload(room_token,token):
     """Uploads the file to a storage folder and saves metadata to db"""
     is_debug = request.args.get("debug","false").lower() == "true"
     form = UploadFileForm()
@@ -81,9 +81,9 @@ def upload():
                 
             rel_path = sanitize_rel_path(f.filename)
             print("Relative Path: ",rel_path)
-            filename = os.path.basename(rel_path)
             parent_folder = os.path.dirname(rel_path)
             print("Parent Folder: ",parent_folder)
+            filename = os.path.basename(rel_path)
             print(filename)
             
             storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token) #Will be stored in the storage directory with it's associated token
@@ -107,13 +107,14 @@ def upload():
             file.expires_at = datetime.now(timezone.utc) + DEFAULT_TTL #default TTL for now
             file.rel_path = rel_path
             file.parent_folder = parent_folder
+            file.room_token = DEFAULT_ROOM_TOKEN
             
             db.session.add(file)
         db.session.commit()
     if is_debug:
         return redirect(url_for("room_stable"))
     else:
-        return redirect(url_for("room"))
+        return redirect(url_for("room",room_token=room_token,token="all"))
 
 @app.route("/files")
 def files(): 
@@ -133,7 +134,7 @@ def files():
     return "This path is deprecated"
 
 
-@app.route("/download/<token>/<path:filename>")
+@app.route("/download/<room_token>/<token>/<path:filename>")
 def download(token,filename):
     """Download desired files/folders"""
     filename = secure_filename(filename)
@@ -162,9 +163,26 @@ def download(token,filename):
         
 @app.route("/test")
 def test():
-    current_folder = request.args.get("current_folder")
-    subfolders,files,rel_paths = get_children(token="W1sGok0NREObsS3CVcJHSA", current_folder=current_folder, 
-                                    root=app.config["UPLOAD_FOLDER"])
-    return jsonify([subfolders,[file.name for file in files],rel_paths])
+    current_folder = request.args.get("current_folder","")
+    token = request.args.get("token","all")
+    subfolders,files,rel_paths = get_children(token=token, current_folder=current_folder, room_token=DEFAULT_ROOM_TOKEN)
+    print("subfolders sample:", subfolders[:1])
+    print("files sample:", files[:1])
+    print("rel_paths sample:", rel_paths[:1])
+    print("types:", type(subfolders[0]), type(files[0]) if files else None, type(rel_paths[0]) if rel_paths else None)
+    return jsonify({
+        "subfolders": [
+            {
+                "name": sf["name"],
+                "token": sf["token"],
+                "path": sf["path"]
+            } for sf in subfolders
+        ],
+        "files": [file.name for file in files],
+        "rel_paths": rel_paths
+            
+        
+    })
+
 if __name__ == "__main__":
     app.run(debug=True)

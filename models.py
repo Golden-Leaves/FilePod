@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text,ForeignKey
 from datetime import datetime,timezone,timedelta
+import os
 class Base(DeclarativeBase):
     pass
 
@@ -22,5 +23,9 @@ class File(db.Model):
     expires_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc) + DEFAULT_TTL)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     download_count: Mapped[int] = mapped_column(Integer, default=0) #How many times it has been downloaded
-    rel_path: Mapped[str] = mapped_column(Text) #Saves the FULL relative path of the file(including all parents)
+    rel_path: Mapped[str] = mapped_column(Text) #Saves the FULL relative path of the file(No C:/ n shit)
+    room_token: Mapped[str] = mapped_column(String(32), default="default_room")
     parent_folder: Mapped[str] = mapped_column(Text) #Only saves the parents
+    # @property #Makes the method an attribute
+    # def parent_folder(self): 
+    #     return os.path.dirname(self.rel_path)

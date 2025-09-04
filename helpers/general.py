@@ -44,24 +44,64 @@ def sanitize_rel_path(raw: str) -> str:
     safe_parts = [secure_filename(p) for p in parts if secure_filename(p)]
     return Path("/".join(safe_parts)).as_posix()
 
-def get_children(token:str,current_folder:str,root:str):
+def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict[str,str]],File,str]:
+    """Gets all the immediate subfolder and child files of the current folder
+    current_folder is the relative path of the current folder
+    root is jsut te storage_dir
+    """
+    subfolders_objs = []
     now = datetime.now(timezone.utc)
+    prefix = f"{current_folder}/" if current_folder else "" #current_folder with a "/" at the end
+    base = [File.expires_at > now, File.room_token == room_token]
+    if token != "all": #Clicking on subfolders
+        base.append(File.token == token)
+        
+  
     files: list[File] = (db.session.execute(db.select(File)
-            .where(File.expires_at > now, File.parent_folder == current_folder,File.token == token)
+            .where(*base,File.parent_folder == current_folder)
             .order_by(File.name.asc()))
             .scalars().all()) #"Database1.accdb"
-    prefix = f"{current_folder}/" if current_folder else "" #Current folder prefix
-    #prefix/% or prefix% matches anything that starts with the prefix(cuz of the '%')
-    rel_paths:list[str] = (db.session.execute(db.select(File.rel_path)
-                .where(File.expires_at > now,File.rel_path.like(f"{prefix}%"),File.token == token))
-                  ).scalars().all() #"some_folder/Misc/Database1.accdb"
-    print(prefix)
-    subfolders =  set([])
-    for rel_path in rel_paths:
-        if rel_path.startswith(prefix):
-            tail = rel_path[len(prefix):]
-            subfolders.add(os.path.dirname(tail))
-    return list(subfolders),files,rel_paths
+    
+    
+    if token == "all":
+         rel_paths: list[tuple[str,str]] = (db.session.execute(db.select(File.rel_path,) #Note: we also include token here
+                .where(*base))
+                ).tuples().all() #"some_folder/Misc/Database1.accdb"
+    else:
+        rel_paths: list[tuple[str,str]] = (db.session.execute(db.select(File.rel_path,File.token) #Note: we also include token here
+                    .where(*base,File.rel_path.startswith(prefix)))
+                    ).tuples().all() #"some_folder/Misc/Database1.accdb"
+
+    seen = set() #Checks for duplicate dictionairy entires to skip
+    for rel_path,token in rel_paths:
+        if rel_path.startswith(prefix): #If the current_folder matches
+            tail = rel_path[len(prefix):] #Everything after prefix
+            if "/" in tail:
+                #Gets the immediate child folder
+                subfolder_name = tail.split("/", 1)[0] #"some_folder/12312/1231231/file.txt" -> some_folder
+                subfolder_token = token
+                subfolder_path =  os.path.join(current_folder,subfolder_name) #The relative path of the subfolder
+                 # immediate child only
+                key = (subfolder_name,subfolder_token,subfolder_path)
+                if key in seen:
+                    continue
+                seen.add(key)
+                print("Adding entry")
+                subfolders_objs.append(
+                    {
+                        "name":subfolder_name,
+                        "token":subfolder_token,
+                        "path":subfolder_path
+                    }
+                )
+                print({
+                        "name":subfolder_name,
+                        "token":subfolder_token,
+                        "path":subfolder_path
+                    })
+    subfolder_objs = list(sorted(subfolders_objs, key=lambda subfolder:subfolder["name"]))
+    print(subfolder_objs)
+    return subfolder_objs,files,rel_paths
         
 if __name__ == "__main__":
     print(format_file_size(1024*2))

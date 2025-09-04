@@ -14,7 +14,7 @@
           {% endfor %}
         {% endif %}
       {% endwith %}
-      <form method="POST" action="{{url_for('upload')}}" enctype="multipart/form-data">
+      <form method="POST" action="{{url_for('upload',room_token=room_token,token=token)}}" enctype="multipart/form-data">
         {{form.hidden_tag()}}
         <!-- d-none hides the element -->
         {{ form.files(id="files",multiple=True,class="d-none", onchange="this.form.submit()") }} 
@@ -22,7 +22,7 @@
         <label for="files" class="btn btn-primary mb-0">Upload Files</label>
       </form>
          
-      <form method="POST" action="{{url_for('upload')}}" enctype="multipart/form-data">
+      <form method="POST" action="{{url_for('upload',room_token=room_token,token=token)}}" enctype="multipart/form-data">
         {{form.hidden_tag()}}
         {{form.files(id="folders",multiple=True, webkitdirectory=True, directory=True, class="d-none", onchange="this.form.submit()")}}
         <label for="folders" class="btn btn-outline-primary mb-0">Upload Folders</label>
@@ -49,28 +49,29 @@
           </tr>
         </thead>
         <tbody id="rows">
-          {%for parent_folder in parent_folders%}
+          {% for subfolder in subfolders %}
             <tr>
-              <td style="width:36px;" class="text-center">
-                <input type="checkbox" name="selected" value="{{ f.token }}">
+              <td class="text-center" style="width:36px;">
+                <input type="checkbox" name="selected_folder" value="{{subfolder}}">
               </td>
-              <td class="name">{{ f.name }}</td>
-              <td class="type">{{ f.type or "Misc" }}</td>
-              <!-- Jinja needs a space after the pipe??? -->
-              <td class="text-end size">{{ f.size | format_filesize}}</td>
-              <td class="expires">{{ f.expires_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-              <td class="text-end downloads">{{ f.download_count or 0 }}</td>
-              <td class="status">{{ f.status or "active" }}</td>
+              <td class="name">
+                <a href="{{ url_for('room', room_token=room_token,token=subfolder.token,current_folder=subfolder.name) }}">
+                  📂 {{ subfolder.name}}
+                </a>
+              </td>
+              <td class="type">Folder</td>
+              <td class="text-end size">—</td>
+              <td class="expires">—</td>
+              <td class="text-end downloads">—</td>
+              <td class="status">active</td>
               <td class="text-end">
-                <a href="{{url_for('download',token=f.token,filename=f.name)}}" class="btn btn-sm btn-primary">Download</a>
-                <form method="POST" action="#room" class="d-inline">
-                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                </form>
+                <a href="{{ url_for('download', token=token, current_folder=subfolder.name,room_token=room_token,filename=subfolder.name) }}"
+                  class="btn btn-sm btn-primary">Download</a>
               </td>
             </tr>
-          {%endfor%}
+            {% endfor %}
 
-          {% for f in orphaned_files %}
+          {% for f in files %}
           <!-- Makes table rows containing all the relevant data -->
             <tr>
               <td style="width:36px;" class="text-center">
@@ -84,7 +85,8 @@
               <td class="text-end downloads">{{ f.download_count or 0 }}</td>
               <td class="status">{{ f.status or "active" }}</td>
               <td class="text-end">
-                <a href="{{url_for('download',token=f.token,filename=f.name)}}" class="btn btn-sm btn-primary">Download</a>
+                <a href="{{url_for('download',token=f.token,filename=f.name,room_token=room_token)}}" class="btn btn-sm btn-primary">
+                Download</a>
                 <form method="POST" action="#room" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                 </form>
