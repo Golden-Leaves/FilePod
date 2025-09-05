@@ -28,7 +28,7 @@ app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage",DEFAULT_ROOM
 app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of function that jinja can use
 Bootstrap(app)
 Session(app)
-
+normalize = lambda p: p.replace("\\", "/")
 class Base(DeclarativeBase):
     pass
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///files.db'
@@ -41,8 +41,8 @@ with app.app_context():
     
 @app.route("/room/<room_token>/<token>",methods=["GET","POST"])
 def room(room_token,token):
-    current_folder = request.args.get("current_folder","")
-    
+    current_folder = normalize(request.args.get("current_folder",""))
+    print(current_folder)
     form = UploadFileForm()
     room_token = DEFAULT_ROOM_TOKEN
     #Make sure files are not expired

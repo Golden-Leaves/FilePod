@@ -55,7 +55,7 @@
                 <input type="checkbox" name="selected_folder" value="{{subfolder}}">
               </td>
               <td class="name">
-                <a href="{{ url_for('room', room_token=room_token,token=subfolder.token,current_folder=subfolder.name) }}">
+                <a href="{{ url_for('room', room_token=room_token,token=subfolder.token,current_folder=subfolder.path) }}">
                   📂 {{ subfolder.name}}
                 </a>
               </td>
@@ -65,7 +65,7 @@
               <td class="text-end downloads">—</td>
               <td class="status">active</td>
               <td class="text-end">
-                <a href="{{ url_for('download', token=token, current_folder=subfolder.name,room_token=room_token,filename=subfolder.name) }}"
+                <a href="{{ url_for('download', token=token, current_folder=subfolder.path,room_token=room_token,filename=subfolder.path) }}"
                   class="btn btn-sm btn-primary">Download</a>
               </td>
             </tr>

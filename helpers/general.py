@@ -64,7 +64,7 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
     
     
     if token == "all":
-         rel_paths: list[tuple[str,str]] = (db.session.execute(db.select(File.rel_path,) #Note: we also include token here
+         rel_paths: list[tuple[str,str]] = (db.session.execute(db.select(File.rel_path,File.token) #Note: we also include token here
                 .where(*base))
                 ).tuples().all() #"some_folder/Misc/Database1.accdb"
     else:
@@ -81,7 +81,7 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
                 subfolder_name = tail.split("/", 1)[0] #"some_folder/12312/1231231/file.txt" -> some_folder
                 subfolder_token = token
                 subfolder_path =  os.path.join(current_folder,subfolder_name) #The relative path of the subfolder
-                 # immediate child only
+                # immediate child only
                 key = (subfolder_name,subfolder_token,subfolder_path)
                 if key in seen:
                     continue
