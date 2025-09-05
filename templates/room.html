@@ -33,7 +33,14 @@
     </div>
 
     <div id="dropzone" class="dropzone mb-2 text-center">Drop files or folders here</div>
-
+    <div class="breadcrumb-bar">
+      <a href="{{ url_for('room', room_token=room_token, token=token, current_folder='') }}">Root</a>
+      {% for crumb in breadcrumbs %}
+        › <a href="{{ url_for('room', room_token=room_token, token=token, current_folder=crumb.path) }}">
+            {{ crumb.name }}
+          </a>
+      {% endfor %}
+    </div>
     <div class="table-wrap">
       <table class="table table-hover align-middle mb-0">
         <thead>

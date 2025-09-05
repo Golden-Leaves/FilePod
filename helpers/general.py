@@ -102,7 +102,21 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
     subfolder_objs = list(sorted(subfolders_objs, key=lambda subfolder:subfolder["name"]))
     print(subfolder_objs)
     return subfolder_objs,files,rel_paths
-        
+def get_breadcrumbs(current_folder:str) -> list[dict[str,str]]:
+    """Creates 'breadcrumbs' form current_folder path so you can traverse up the folders"""
+    #Check out google drive's for reference
+    breadcrumbs = []
+    #"some_folder/Documents" => ["some_folder", "Documents"] 
+    parts = (current_folder or "").strip("/").split("/") #Number of segments in the path
+    #NOTE:Breadcrumbs are built from top to bottom
+    for i in range(1, len(parts)+1):
+        breadcrumb_path = "/".join(parts[:i])  #[a,b,c] = "a" (parent folder path)
+        breadcrumb_name = parts[i - 1] #[a,b,c] = "a" (parent folder name)/ current_folder's name
+        breadcrumbs.append({
+            "name": breadcrumb_name,
+            "path": breadcrumb_path
+        })
+    return breadcrumbs
 if __name__ == "__main__":
     print(format_file_size(1024*2))
     print([])

@@ -13,7 +13,7 @@ import secrets
 import tempfile
 from werkzeug.utils import secure_filename
 from helpers.mime_categorizer import categorize_file
-from helpers.general import format_file_size,sanitize_rel_path,get_children
+from helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs
 from forms import UploadFileForm
 from models import db,File
 
@@ -43,6 +43,7 @@ with app.app_context():
 def room(room_token,token):
     current_folder = normalize(request.args.get("current_folder",""))
     print(current_folder)
+    breadcrumbs = get_breadcrumbs(current_folder=current_folder)
     form = UploadFileForm()
     room_token = DEFAULT_ROOM_TOKEN
     #Make sure files are not expired
@@ -52,7 +53,8 @@ def room(room_token,token):
     subfolders, files,rel_paths = get_children(token=token,room_token=room_token,
                                     current_folder=current_folder) 
     print(subfolders,[file.name for file in files],rel_paths)
-    return render_template("room.html",form=form,subfolders=subfolders,files=files,room_token=room_token,token=token)
+    return render_template("room.html",form=form,subfolders=subfolders,files=files,room_token=room_token,token=token,
+                           breadcrumbs=breadcrumbs)
 
 @app.route("/room-stable")
 def room_stable():
