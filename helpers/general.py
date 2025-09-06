@@ -39,19 +39,21 @@ def is_folder_upload(files:list):
 
 def sanitize_rel_path(raw: str) -> str:
     """secure_file_name() strips directory structure, use this instead for directories"""
-    raw = (raw or "").replace("\\", "/")
+    raw = (raw or "").replace("\\", "/") #Web requests always send "/"
+    print(f"Raw: {raw}")
     parts = [p for p in raw.split("/") if p not in ("", ".", "..")]
     safe_parts = [secure_filename(p) for p in parts if secure_filename(p)]
-    return Path("/".join(safe_parts)).as_posix()
+    return os.path.join(*safe_parts) if safe_parts else ""
 
 def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict[str,str]],File,str]:
     """Gets all the immediate subfolder and child files of the current folder
     current_folder is the relative path of the current folder
     root is jsut te storage_dir
     """
+    current_folder = sanitize_rel_path(current_folder)
     subfolders_objs = []
     now = datetime.now(timezone.utc)
-    prefix = f"{current_folder}/" if current_folder else "" #current_folder with a "/" at the end
+    prefix = f"{current_folder}\\" if current_folder else "" #current_folder with a "/" at the end
     base = [File.expires_at > now, File.room_token == room_token]
     if token != "all": #Clicking on subfolders
         base.append(File.token == token)
@@ -71,14 +73,14 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
         rel_paths: list[tuple[str,str]] = (db.session.execute(db.select(File.rel_path,File.token) #Note: we also include token here
                     .where(*base,File.rel_path.startswith(prefix)))
                     ).tuples().all() #"some_folder/Misc/Database1.accdb"
-
+    #TODO: Subfolders being detected wrongly
     seen = set() #Checks for duplicate dictionairy entires to skip
     for rel_path,token in rel_paths:
         if rel_path.startswith(prefix): #If the current_folder matches
             tail = rel_path[len(prefix):] #Everything after prefix
-            if "/" in tail:
+            if "\\" in tail:
                 #Gets the immediate child folder
-                subfolder_name = tail.split("/", 1)[0] #"some_folder/12312/1231231/file.txt" -> some_folder
+                subfolder_name = tail.split("\\", 1)[0] #"some_folder/12312/1231231/file.txt" -> some_folder
                 subfolder_token = token
                 subfolder_path =  os.path.join(current_folder,subfolder_name) #The relative path of the subfolder
                 # immediate child only
@@ -86,7 +88,6 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
                 if key in seen:
                     continue
                 seen.add(key)
-                print("Adding entry")
                 subfolders_objs.append(
                     {
                         "name":subfolder_name,
@@ -94,14 +95,9 @@ def get_children(room_token:str,token:str,current_folder:str) -> tuple[list[dict
                         "path":subfolder_path
                     }
                 )
-                print({
-                        "name":subfolder_name,
-                        "token":subfolder_token,
-                        "path":subfolder_path
-                    })
     subfolder_objs = list(sorted(subfolders_objs, key=lambda subfolder:subfolder["name"]))
-    print(subfolder_objs)
     return subfolder_objs,files,rel_paths
+
 def get_breadcrumbs(current_folder:str) -> list[dict[str,str]]:
     """Creates 'breadcrumbs' form current_folder path so you can traverse up the folders"""
     #Check out google drive's for reference

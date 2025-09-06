@@ -1,17 +1,19 @@
+import os
 from datetime import datetime,timezone,timedelta
 from flask import (Flask, abort, render_template, redirect, url_for, flash,
-                   session,request,Blueprint,send_from_directory,jsonify)
+                   session,request,Blueprint,send_from_directory,jsonify,send_file)
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text,ForeignKey
 from functools import wraps
-import zipfile,os
+import zipfile
 from dotenv import load_dotenv
 import secrets
 import tempfile
-from werkzeug.utils import secure_filename
+from werkzeug.utils import safe_join
+import time
 from helpers.mime_categorizer import categorize_file
 from helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs
 from forms import UploadFileForm
@@ -24,7 +26,7 @@ load_dotenv(env_path)
 app = Flask(__name__,static_folder="static",template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
-app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage",DEFAULT_ROOM_TOKEN) #TODO: Add a real room token
+app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage") #TODO: Add a real room token
 app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of function that jinja can use
 Bootstrap(app)
 Session(app)
@@ -52,7 +54,7 @@ def room(room_token,token):
     #Gets all the subfolders and files of the current folder
     subfolders, files,rel_paths = get_children(token=token,room_token=room_token,
                                     current_folder=current_folder) 
-    print(subfolders,[file.name for file in files],rel_paths)
+    
     return render_template("room.html",form=form,subfolders=subfolders,files=files,room_token=room_token,token=token,
                            breadcrumbs=breadcrumbs)
 
@@ -88,7 +90,7 @@ def upload(room_token,token):
             filename = os.path.basename(rel_path)
             print(filename)
             
-            storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token) #Will be stored in the storage directory with it's associated token
+            storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],room_token,token) #Will be stored in the storage directory with it's associated token
             os.makedirs(storage_dir,exist_ok=True)
             
             parts = rel_path.split("/") #Windows shenanigans
@@ -136,33 +138,50 @@ def files():
     return "This path is deprecated"
 
 
-@app.route("/download/<room_token>/<token>/<path:filename>")
-def download(token,filename):
+@app.route("/download/<room_token>/<token>")
+def download(room_token,token):
     """Download desired files/folders"""
-    filename = secure_filename(filename)
-    downloaded_files:File = db.session.execute(db.select(File).where(File.token == token)).scalars().all()
-    storage_dir = os.path.join(app.config["UPLOAD_FOLDER"],token)
-    temp_dir = tempfile.gettempdir() #Gets the system's temp dir(Cross-platform)
-    zip_path = os.path.join(temp_dir,f"{token}.zip")
+    current_folder = request.args.get("current_folder","")
+    print(current_folder)
+    filename = request.args.get("filename","]omad[fhn[adofihand[hfoindah[oifndhafhniupn]]]]")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip") 
+    tmp.close()  
     
-    if len(downloaded_files) > 1: #Zips the folderif more than one file
-        os.makedirs("temp/archive", exist_ok=True)
-        with zipfile.ZipFile(zip_path,mode="w") as zf:
-            #Traverses every file in the dir and writes to a zip
-            for root, _ , files in os.walk(storage_dir):
-                for file in files:
-                    abs_file_path = os.path.join(root,file)
-                    #Only trims to storage path, so it doesn't leak the full directory path
-                    rel_file_path = os.path.relpath(abs_file_path,storage_dir)
-                    print(rel_file_path)
-                    zf.write(abs_file_path,rel_file_path)
-        return send_from_directory(directory=os.path.dirname(zip_path),path=os.path.basename(zip_path),
-                                   as_attachment=True,download_name=filename)
-    else:
-        return send_from_directory(directory=storage_dir,path=filename,as_attachment=True,
+    current_folder = sanitize_rel_path(current_folder) 
+    
+    print(f"Current file: {filename}")
+    base_dir = os.path.join(app.config["UPLOAD_FOLDER"], room_token, token)
+    current_dir = os.path.join(base_dir,current_folder) #The current folder the user's downloading
+    
+    print(f"Current Dir: {current_dir}")
+    file_path = os.path.join(current_dir, sanitize_rel_path(filename))
+    print(f"File Path: {file_path}")
+    #Checks if the user's downloading a file
+    if os.path.isfile(file_path): 
+        print(file_path)
+        return send_from_directory(directory=current_dir,path=filename,as_attachment=True,
                                    download_name=filename)
-        
-        
+    #Checks if the user's downloading a folder
+    elif os.path.isdir(current_dir):
+        print(f"Current Dir: {current_dir}")
+        #The "root" is the current folder os.walk() is in
+        with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as archive:
+            for root, dirs, files in os.walk(current_dir): #Goes down each level of the directory tree
+                for file in files: 
+                    abs_path = os.path.join(root,file)
+                    rel_path = os.path.relpath(abs_path,start=current_dir) #Rel path based on a starting directory
+                    archive.write(abs_path,arcname=rel_path)
+                    
+        zip_name = os.path.join(os.path.basename(current_dir),".zip")
+        return send_file(tmp.name,as_attachment=True,download_name=zip_name, #Takes only the folder name
+                            mimetype="application/zip")
+    # else:
+    #     abort(404)
+    #     time.sleep(2)
+    #     return redirect(url_for("room",token=token,room_token=room_token))
+    
+    
+    
 @app.route("/test")
 def test():
     current_folder = request.args.get("current_folder","")

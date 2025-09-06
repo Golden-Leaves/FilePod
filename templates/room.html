@@ -34,10 +34,11 @@
 
     <div id="dropzone" class="dropzone mb-2 text-center">Drop files or folders here</div>
     <div class="breadcrumb-bar">
-      <a href="{{ url_for('room', room_token=room_token, token=token, current_folder='') }}">Root</a>
+
+      <a href="{{ url_for('room', room_token=room_token, token='all') }}">Root</a>
       {% for crumb in breadcrumbs %}
-        › <a href="{{ url_for('room', room_token=room_token, token=token, current_folder=crumb.path) }}">
-            {{ crumb.name }}
+          <a href="{{ url_for('room', room_token=room_token, token=token, current_folder=crumb.path) }}">
+          >  {{ crumb.name }}
           </a>
       {% endfor %}
     </div>
@@ -72,7 +73,7 @@
               <td class="text-end downloads">—</td>
               <td class="status">active</td>
               <td class="text-end">
-                <a href="{{ url_for('download', token=token, current_folder=subfolder.path,room_token=room_token,filename=subfolder.path) }}"
+                <a href="{{ url_for('download', token=subfolder.token, current_folder=subfolder.path,room_token=room_token) }}"
                   class="btn btn-sm btn-primary">Download</a>
               </td>
             </tr>
@@ -92,7 +93,7 @@
               <td class="text-end downloads">{{ f.download_count or 0 }}</td>
               <td class="status">{{ f.status or "active" }}</td>
               <td class="text-end">
-                <a href="{{url_for('download',token=f.token,filename=f.name,room_token=room_token)}}" class="btn btn-sm btn-primary">
+                <a href="{{url_for('download',token=f.token,filename=f.name,room_token=room_token,current_folder=f.parent_folder)}}" class="btn btn-sm btn-primary">
                 Download</a>
                 <form method="POST" action="#room" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-danger">Delete</button>
