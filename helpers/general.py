@@ -2,6 +2,7 @@
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
+import shutil
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models import File,db
@@ -113,6 +114,18 @@ def get_breadcrumbs(current_folder:str) -> list[dict[str,str]]:
             "path": breadcrumb_path
         })
     return breadcrumbs
+def cleanup_expired_tokens(storage_dir:str,room_token:str) -> None:
+    """Deletes token folders that are already expired"""
+    now = datetime.now(timezone.utc)
+
+    expired_tokens = (db.session.execute(db.select(File.token).where(File.expires_at < now,File.room_token == room_token)
+                                 .distinct()).scalars().all()) 
+    for token in expired_tokens:
+        token_folder = os.path.join(storage_dir,room_token,token)
+        shutil.rmtree(token_folder,ignore_errors=True) #Deletes the token folder in /storage
+        db.session.execute(db.delete(File).where(File.token == token, File.room_token == room_token)) #Deletes rows
+                
+    db.session.commit()
 if __name__ == "__main__":
     print(format_file_size(1024*2))
     print([])

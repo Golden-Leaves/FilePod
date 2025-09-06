@@ -5,8 +5,6 @@ from flask import (Flask, abort, render_template, redirect, url_for, flash,
 from flask_session import Session
 from flask_bootstrap5 import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, Text,ForeignKey
 from functools import wraps
 import zipfile
 from dotenv import load_dotenv
@@ -15,12 +13,13 @@ import tempfile
 from werkzeug.utils import safe_join
 import time
 from helpers.mime_categorizer import categorize_file
-from helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs
+from helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs,cleanup_expired_tokens
 from forms import UploadFileForm
 from models import db,File
 
 DEFAULT_ROOM_TOKEN = "default_room"
-DEFAULT_TTL = timedelta(hours=1)
+# DEFAULT_TTL = timedelta(hours=1)
+DEFAULT_TTL = timedelta(seconds=5)
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
 app = Flask(__name__,static_folder="static",template_folder="templates")
@@ -30,9 +29,8 @@ app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "storage") #TODO: Add 
 app.jinja_env.filters["format_filesize"] = format_file_size #Sets a sort of function that jinja can use
 Bootstrap(app)
 Session(app)
-normalize = lambda p: p.replace("\\", "/")
-class Base(DeclarativeBase):
-    pass
+
+normalize = lambda x: x.replace("\\","/")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///files.db'
 
 db.init_app(app)
@@ -43,7 +41,8 @@ with app.app_context():
     
 @app.route("/room/<room_token>/<token>",methods=["GET","POST"])
 def room(room_token,token):
-    current_folder = normalize(request.args.get("current_folder",""))
+    current_folder = request.args.get("current_folder","")
+    cleanup_expired_tokens(app.config["UPLOAD_FOLDER"],room_token=room_token)
     print(current_folder)
     breadcrumbs = get_breadcrumbs(current_folder=current_folder)
     form = UploadFileForm()
