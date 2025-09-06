@@ -1,3 +1,131 @@
-{%extends "base.html"%}
-{%block content%}
-{%endblock%}
+{% extends "base.html" %}
+
+{% block head %}
+  <title>Rooms · FilePod</title>
+{% endblock %}
+
+{% block content %}
+  <h2 class="mb-3">Available Rooms</h2>
+
+  <!-- Search + Sort controls -->
+  <div class="row g-2 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="input-group">
+        <span class="input-group-text bg-transparent border-secondary-subtle">
+          <i class="bi-search"></i>
+        </span>
+        <input id="searchInput" type="text" class="form-control border-secondary-subtle"
+               placeholder="Search by room, host, or code…">
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <select id="sortKey" class="form-select border-secondary-subtle">
+        <option value="expires">Sort: Expires</option>
+        <option value="files">Sort: Files</option>
+        <option value="host">Sort: Host</option>
+        <option value="latency">Sort: Latency</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3 d-grid">
+      <button id="sortDir" class="btn btn-outline-light" data-dir="asc">Asc</button>
+    </div>
+  </div>
+
+  <!-- Rooms grid -->
+  <div id="grid" class="row g-3">
+    {% if rooms %}
+      {% for r in rooms %}
+        {% include "room_card.partial.html" with context %}
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5 text-secondary">
+        No rooms yet. Waiting for hosts to announce…
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Toast for copy link -->
+  <div class="position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index:1080">
+    <div id="copyToast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">Link copied.</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Client-side sugar (search, sort, copy, TTL countdown)
+  const grid = document.getElementById('grid');
+  const searchInput = document.getElementById('searchInput');
+  const sortKeySel = document.getElementById('sortKey');
+  const sortDirBtn = document.getElementById('sortDir');
+  const copyToast = document.getElementById('copyToast');
+
+  function fmtTTL(msLeft) {
+    if (msLeft <= 0) return 'Expired';
+    const s = Math.floor(msLeft / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  }
+
+  function tickTTL() {
+    const now = Date.now();
+    document.querySelectorAll('[data-expires-at]').forEach(el => {
+      const ms = parseInt(el.getAttribute('data-expires-at')||'0',10) - now;
+      el.textContent = fmtTTL(ms);
+      el.classList.toggle('text-danger-emphasis', ms <= 0);
+    });
+  }
+  setInterval(tickTTL, 1000); tickTTL();
+
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-copy]');
+    if (btn) {
+      const url = btn.getAttribute('data-copy');
+      navigator.clipboard.writeText(url).then(() => new bootstrap.Toast(copyToast).show());
+      e.stopPropagation();
+    }
+  });
+
+  function currentCards() { return Array.from(grid.querySelectorAll('[data-room]')); }
+
+  function applySearch() {
+    const q = (searchInput.value || '').toLowerCase();
+    currentCards().forEach(card => {
+      const hay = (card.getAttribute('data-hay')||'').toLowerCase();
+      card.style.display = hay.includes(q) ? '' : 'none';
+    });
+  }
+
+  function applySort() {
+    const key = sortKeySel.value;
+    const asc = sortDirBtn.getAttribute('data-dir') !== 'desc';
+    const cards = currentCards();
+    cards.sort((a,b) => {
+      const av = a.getAttribute(`data-${key}`)||'';
+      const bv = b.getAttribute(`data-${key}`)||'';
+      let cmp = 0;
+      if (key==='host') cmp = av.localeCompare(bv);
+      else cmp = (parseFloat(av)||0) - (parseFloat(bv)||0);
+      return asc ? cmp : -cmp;
+    });
+    cards.forEach(c => grid.appendChild(c));
+  }
+
+  searchInput.addEventListener('input', applySearch);
+  sortKeySel.addEventListener('change', applySort);
+  sortDirBtn.addEventListener('click', () => {
+    const desc = sortDirBtn.getAttribute('data-dir')==='desc';
+    sortDirBtn.setAttribute('data-dir', desc? 'asc':'desc');
+    sortDirBtn.textContent = desc? 'Asc' : 'Desc';
+    applySort();
+  });
+
+  applySearch(); applySort();
+</script>
+{% endblock %}

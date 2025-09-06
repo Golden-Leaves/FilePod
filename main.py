@@ -18,8 +18,8 @@ from forms import UploadFileForm
 from models import db,File
 
 DEFAULT_ROOM_TOKEN = "default_room"
-# DEFAULT_TTL = timedelta(hours=1)
-DEFAULT_TTL = timedelta(seconds=5)
+DEFAULT_TTL = timedelta(hours=1)
+
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),".env")
 load_dotenv(env_path)
 app = Flask(__name__,static_folder="static",template_folder="templates")
@@ -56,6 +56,9 @@ def room(room_token,token):
     
     return render_template("room.html",form=form,subfolders=subfolders,files=files,room_token=room_token,token=token,
                            breadcrumbs=breadcrumbs)
+@app.route("/rooms")
+def rooms():
+    return render_template("rooms.html")
 
 @app.route("/room-stable")
 def room_stable():
@@ -174,12 +177,12 @@ def download(room_token,token):
         zip_name = os.path.join(os.path.basename(current_dir),".zip")
         return send_file(tmp.name,as_attachment=True,download_name=zip_name, #Takes only the folder name
                             mimetype="application/zip")
-    # else:
-    #     abort(404)
-    #     time.sleep(2)
-    #     return redirect(url_for("room",token=token,room_token=room_token))
+    else:
+        abort(404)
+        time.sleep(2)
+        return redirect(url_for("room",token=token,room_token=room_token))
     
-    
+
     
 @app.route("/test")
 def test():
