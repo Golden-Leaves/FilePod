@@ -1,0 +1,50 @@
+<div class="col-12 col-sm-6 col-lg-4 col-xl-3" data-room
+     data-host="{{ r.hostLabel or r.hostIp }}"
+     data-files="{{ r.filesCount }}"
+     data-expires="{{ r.expiresAt_ms }}"
+     data-latency="{{ r.latencyMs|default(1e12) }}"
+     data-hay="{{ (r.name ~ ' ' ~ r.code ~ ' ' ~ r.hostIp ~ ' ' ~ (r.hostLabel or ''))|e }}">
+  {% set join = 'http://' ~ r.hostIp ~ ':' ~ (r.port or 5000) ~ '/r/' ~ r.code %}
+  <div class="room-card card h-100 border-0 bg-body-tertiary" role="button" tabindex="0"
+       onclick="location.href='{{ join }}'">
+    <div class="card-body d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge badge-soft {{ 'text-warning-emphasis' if r.pin else 'text-success-emphasis' }}">
+            <i class="{{ 'bi-lock-fill' if r.pin else 'bi-unlock-fill' }} me-1"></i>
+            {{ 'PIN' if r.pin else 'Open' }}
+          </span>
+          <span class="badge badge-soft">
+            <i class="bi-files me-1"></i>{{ r.filesCount }} file{{ '' if r.filesCount==1 else 's' }}
+          </span>
+        </div>
+        <h2 class="h6 mb-1 text-truncate" title="{{ r.name }}">{{ r.name }}</h2>
+        <div class="small text-secondary">
+          Code: <span class="mono">{{ r.code }}</span>
+        </div>
+      </div>
+      <div class="mt-3 d-flex align-items-center justify-content-between">
+        <div class="small text-secondary">
+          <i class="bi-wifi me-1"></i>
+          <span class="mono">{{ r.hostIp }}</span>
+          {% if r.hostLabel %} · <span class="text-secondary-emphasis">{{ r.hostLabel }}</span>{% endif %}
+        </div>
+        <div class="text-end small">
+          <i class="bi-clock me-1"></i>
+          <span data-expires-at="{{ r.expiresAt_ms }}">--</span>
+          {% if r.latencyMs is defined %}
+            <div class="text-secondary">{{ r.latencyMs }} ms</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <a href="{{ join }}" class="btn btn-primary flex-fill">
+          Join <i class="bi-box-arrow-up-right ms-1"></i>
+        </a>
+        <button type="button" class="btn btn-outline-light" data-copy="{{ join }}" title="Copy link">
+          <i class="bi-clipboard"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

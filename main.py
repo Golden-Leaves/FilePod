@@ -10,12 +10,11 @@ import zipfile
 from dotenv import load_dotenv
 import secrets
 import tempfile
-from werkzeug.utils import safe_join
 import time
-from helpers.mime_categorizer import categorize_file
-from helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs,cleanup_expired_tokens
-from forms import UploadFileForm
-from models import db,File
+from app.helpers.mime_categorizer import categorize_file
+from app.helpers.general import format_file_size,sanitize_rel_path,get_children,get_breadcrumbs,cleanup_expired_tokens
+from app.forms import UploadFileForm
+from app.models import db,File
 
 DEFAULT_ROOM_TOKEN = "default_room"
 DEFAULT_TTL = timedelta(hours=1)
