@@ -1,11 +1,10 @@
-
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
 import shutil
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from models import File,db
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from ..models import File,db
 from datetime import datetime,timezone
 
 def format_file_size(file_size:int) -> str:
